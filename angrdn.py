@@ -150,7 +150,7 @@ class Config:
             self.linearity_coeffs = envi.open(self.linearity_map_file+'.hdr').load()
 
 
-@ray.remote
+@ray.remote(num_cpus=1)
 def calibrate_raw_remote(frames, fpa, config):
     return calibrate_raw(frames, fpa, config)
 

@@ -108,7 +108,7 @@ class Config:
         else:
             self.panel_ghost = None
 
-@ray.remote
+@ray.remote(num_cpus=1)
 def calibrate_raw_remote(frames, fpa, config):
     return calibrate_raw(frames, fpa, config)
 

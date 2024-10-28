@@ -162,7 +162,7 @@ class Config:
 
 BAD_FLAG = -9000
 
-@ray.remote
+@ray.remote(num_cpus=1)
 def calibrate_raw(frames, fpa, config):
 
     if len(frames.shape) == 2:
