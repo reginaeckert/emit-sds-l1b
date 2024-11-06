@@ -48,6 +48,8 @@ wavelength = {{{wavelength_string}}}
 fwhm = {{{fwhm_string}}}
 band names = {{{band_names_string}}}
 masked pixel noise = {masked_pixel_noise}
+integration_time = {integration_time}
+
 """
 
 replaced_header_template = """ENVI
@@ -71,6 +73,50 @@ def find_header(infile):
     else:
         raise FileNotFoundError('Did not find header file')
 
+def parse_integration_time(rawf):
+
+    integration_time  = None
+
+    int_scale = {'013f': 1.,
+                 '00a0': .5,
+                 '0060': .3,
+                 '0020': .1}
+
+    line = 0
+
+    with open(rawf,'rb') as f:
+
+        for line in range(100):
+
+            f.seek(line * 1280 * 328 * 2+324) 					#Byte 324 valid: 0xBABE invalid: 0xDEAD
+            data1=f.read(2)
+            pp_FIFO_flag = hex(struct.unpack('<H', data1)[0])
+
+            data2=f.read(2)
+            pp_FIFO_word_count = struct.unpack('<H', data2)[0] #Byte 326 valid: 36
+
+            if (pp_FIFO_flag == '0xbabe') & (pp_FIFO_word_count == 36):
+
+                f.seek(line * 1280 * 328 * 2+359)
+                lsb=f"0x{f.read(1)[0]:02x}"[-2:]
+                msb=f"0x{f.read(1)[0]:02x}"[-2:]
+
+                tint = f'{msb}{lsb}'
+
+                if tint not in int_scale.keys():
+                    logging.warn(f'Integration bytes not recognized in line {line}: {tint}')
+                else:
+                    integration_time  = int_scale[tint]
+                    logging.info(f'Integration time: {integration_time}')
+                    break
+
+            else:
+                logging.warn(f'Line {line}: Valid ROIC parameters not found')
+                logging.warn('\tpp_FIFO_flag',pp_FIFO_flag)
+                logging.warn('\tpp_FIFO_word_count',pp_FIFO_word_count )
+
+
+    return integration_time
 
 class Config:
 
@@ -297,7 +343,7 @@ def main():
             help='verbosity level: INFO, ERROR, or DEBUG')
     parser.add_argument('--log_file', type=str, default=None)
     parser.add_argument('--max_jobs', type=int, default=40)
-    parser.add_argument('--integration_time', type=float, default=1)
+    parser.add_argument('--integration_time', type=float, default=None)
     parser.add_argument('--dark_science_indices', nargs='*', type=int, help='List of starting and ending indices of dark and science lines')
 
     args = parser.parse_args()
@@ -324,8 +370,16 @@ def main():
     except:
         binfac = int(np.genfromtxt(args.binfac))
 
+    if args.integration_time is None:
+        intergration_time = parse_integration_time(args.input_file)
+        if intergration_time is None:
+            logging.error(f"Integration time not found in frame header.")
+            sys.exit(1)
+    else:
+        integration_time = args.integration_time
+
     fpa = FPA(args.config_file)
-    config = Config(fpa, args.mode, args.integration_time)
+    config = Config(fpa, args.mode, integration_time)
 
     logging.info('Initializing ray')
     ray.init(num_cpus=args.max_jobs,ignore_reinit_error=True)
@@ -453,6 +507,8 @@ def main():
     params = {}
     params['masked_pixel_noise'] = np.nanmedian(np.array(noises))
     params['run_command_string'] = ' '.join(sys.argv)
+    params['integration_time'] = integration_time
+
     # Write the header
     params.update(**locals())
     params['lines'] = binned_lines
