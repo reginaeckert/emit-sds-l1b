@@ -228,6 +228,16 @@ def main():
     args = parser.parse_args()
     # args.dark_science_indices = [0,33096,1138,6898]  #Debugging
 
+    # Set up logging
+    for handler in logging.root.handlers[:]:
+        logging.root.removeHandler(handler)
+    if args.log_file is None:
+        logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s',
+                            level=args.level)
+    else:
+        logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s',
+                            level=args.level,
+                            filename=args.log_file)
 
     fpa = FPA(args.config_file)
     config = Config(fpa, args.mode)
@@ -235,25 +245,15 @@ def main():
     #Find binfac file if not provided
     if args.binfac is None:
         args.binfac = args.input_file + '.binfac'
-
         if os.path.isfile(args.binfac) is False:
             logging.error(f'binfac file not found at expected location: {args.binfac}')
             raise ValueError('Binfac file not found - see log for details')
-
     try:
         binfac = int(args.binfac)
     except:
         binfac = int(np.genfromtxt(args.binfac))
 
 
-    # Set up logging
-    for handler in logging.root.handlers[:]:
-        logging.root.removeHandler(handler)
-    if args.log_file is None:
-        logging.basicConfig(format='%(message)s', level=args.level)
-    else:
-        logging.basicConfig(format='%(asctime)s %(levelname)s: %(message)s',
-            level=args.level, filename=args.log_file)
 
     logging.info('Starting calibration')
     raw = 'Start'

@@ -10,6 +10,8 @@ os.environ['RAY_worker_register_timeout_seconds'] = '600'
 os.environ["OMP_NUM_THREADS"] = "1"
 os.environ["MKL_NUM_THREADS"] = "1"
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
+import struct
+
 import numpy as np
 from spectral.io import envi
 import ray
@@ -88,7 +90,7 @@ def parse_integration_time(rawf):
 
         for line in range(100):
 
-            f.seek(line * 1280 * 328 * 2+324) 					#Byte 324 valid: 0xBABE invalid: 0xDEAD
+            f.seek(line * 1280 * 328 * 2+324) 	#Byte 324 valid: 0xBABE invalid: 0xDEAD
             data1=f.read(2)
             pp_FIFO_flag = hex(struct.unpack('<H', data1)[0])
 
@@ -114,7 +116,6 @@ def parse_integration_time(rawf):
                 logging.warn(f'Line {line}: Valid ROIC parameters not found')
                 logging.warn('\tpp_FIFO_flag',pp_FIFO_flag)
                 logging.warn('\tpp_FIFO_word_count',pp_FIFO_word_count )
-
 
     return integration_time
 
@@ -352,10 +353,12 @@ def main():
     for handler in logging.root.handlers[:]:
         logging.root.removeHandler(handler)
     if args.log_file is None:
-        logging.basicConfig(format='%(message)s', level=args.level)
+        logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s',
+                            level=args.level)
     else:
-        logging.basicConfig(format='%(asctime)s %(levelname)s: %(message)s',
-            level=args.level, filename=args.log_file)
+        logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s',
+                            level=args.level,
+                            filename=args.log_file)
 
     #Find binfac file if not provided
     if args.binfac is None:
@@ -371,8 +374,8 @@ def main():
         binfac = int(np.genfromtxt(args.binfac))
 
     if args.integration_time is None:
-        intergration_time = parse_integration_time(args.input_file)
-        if intergration_time is None:
+        integration_time = parse_integration_time(args.input_file)
+        if integration_time is None:
             logging.error(f"Integration time not found in frame header.")
             sys.exit(1)
     else:

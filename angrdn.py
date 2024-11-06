@@ -11,7 +11,7 @@ import scipy as sp
 import numpy as np
 from spectral.io import envi
 from datetime import datetime, timezone
-from scipy import linalg, polyfit, polyval
+from numpy import linalg, polyfit, polyval
 import json
 import logging
 import argparse
@@ -76,12 +76,12 @@ byte order = 0
 
 
 def find_header(infile):
-  if os.path.exists(infile+'.hdr'):
-    return infile+'.hdr'
-  elif os.path.exists('.'.join(infile.split('.')[:-1])+'.hdr'):
-    return '.'.join(infile.split('.')[:-1])+'.hdr'
-  else:
-    raise FileNotFoundError('Did not find header file')
+    if os.path.exists(infile+'.hdr'):
+        return infile+'.hdr'
+    elif os.path.exists('.'.join(infile.split('.')[:-1])+'.hdr'):
+        return '.'.join(infile.split('.')[:-1])+'.hdr'
+    else:
+        raise FileNotFoundError('Did not find header file')
 
 
 class Config:
@@ -270,6 +270,17 @@ def main():
 
     args = parser.parse_args()
 
+    # Set up logging
+    for handler in logging.root.handlers[:]:
+        logging.root.removeHandler(handler)
+    if args.log_file is None:
+        logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s',
+                            level=args.level)
+    else:
+        logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s',
+                            level=args.level,
+                            filename=args.log_file)
+
     start_time = time.time()
 
     fpa = FPA(args.config_file)
@@ -287,15 +298,6 @@ def main():
         binfac = int(args.binfac)
     except:
         binfac = int(np.genfromtxt(args.binfac))
-
-    # Set up logging
-    for handler in logging.root.handlers[:]:
-        logging.root.removeHandler(handler)
-    if args.log_file is None:
-        logging.basicConfig(format='%(message)s', level=args.level)
-    else:
-        logging.basicConfig(format='%(asctime)s %(levelname)s: %(message)s',
-            level=args.level, filename=args.log_file)
 
     logging.info('Starting calibration')
     raw = 'Start'
