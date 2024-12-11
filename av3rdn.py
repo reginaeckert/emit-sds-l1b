@@ -50,7 +50,7 @@ wavelength = {{{wavelength_string}}}
 fwhm = {{{fwhm_string}}}
 band names = {{{band_names_string}}}
 masked pixel noise = {masked_pixel_noise}
-integration_time = {integration_time}
+integration time = {integration_time}
 
 """
 
@@ -113,9 +113,9 @@ def parse_integration_time(rawf):
                     break
 
             else:
-                logging.warn(f'Line {line}: Valid ROIC parameters not found')
-                logging.warn('\tpp_FIFO_flag',pp_FIFO_flag)
-                logging.warn('\tpp_FIFO_word_count',pp_FIFO_word_count )
+                logging.warning(f'Line {line}: Valid ROIC parameters not found')
+                logging.warning(f'\tpp_FIFO_flag {pp_FIFO_flag}')
+                logging.warning(f'\tpp_FIFO_word_count {pp_FIFO_word_count}' )
 
     return integration_time
 
@@ -373,11 +373,20 @@ def main():
     except:
         binfac = int(np.genfromtxt(args.binfac))
 
+    infile = envi.open(find_header(args.input_file))
+
     if args.integration_time is None:
-        integration_time = parse_integration_time(args.input_file)
-        if integration_time is None:
-            logging.error(f"Integration time not found in frame header.")
-            sys.exit(1)
+
+        integration_time = infile.metadata.get('integration time')
+
+        if integration_time:
+            integration_time = float(integration_time)
+        else:
+            logging.info('Integration time not found in raw ENVI header. Checking frame header')
+            integration_time = parse_integration_time(args.input_file)
+            if integration_time is None:
+                logging.error(f"Integration time not found in frame header.")
+                sys.exit(1)
     else:
         integration_time = args.integration_time
 
@@ -389,8 +398,6 @@ def main():
     logging.info('Initialization complete, starting calibration')
 
     raw = 'Start'
-
-    infile = envi.open(find_header(args.input_file))
 
     if int(infile.metadata['data type']) == 2:
         dtype = np.int16
