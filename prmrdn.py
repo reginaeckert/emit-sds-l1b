@@ -26,6 +26,8 @@ from prm_panel_ghost import panel_ghost_corr_prism
 from fpa import FPA
 from darksubtract import subtract_dark
 from leftshift import left_shift_twice
+from fixbad import fix_bad
+
 
 BAD_FLAG = -9000
 
@@ -46,6 +48,17 @@ band names = {{{band_names_string}}}
 masked pixel noise = {masked_pixel_noise}
 """
 
+replaced_header_template = """ENVI
+description = {{PRISM replaced channels}}
+samples = {ncolumns}
+lines = {lines}
+bands = {nreplacedchannels}
+header offset = 0
+file type = ENVI Standard
+data type = 1
+interleave = bil
+byte order = 0
+"""
 
 def find_header(infile):
     if os.path.exists(infile+'.hdr'):
@@ -122,6 +135,7 @@ def calibrate_raw(frames, fpa, config):
     for _f in range(frames.shape[0]):
         frame = frames[_f,...]
         noise = -9999
+        # saturated = np.ones(frame.shape)<0 # False
 
         ## Don't calibrate a bad frame
         if not np.all(frame <= BAD_FLAG):
@@ -129,6 +143,10 @@ def calibrate_raw(frames, fpa, config):
             # Left shift, returning to the 16 bit range.
             if hasattr(fpa,'left_shift_twice') and fpa.left_shift_twice:
                frame = left_shift_twice(frame)
+
+            # Test for saturation
+            # if hasattr(fpa,'saturation_DN'):
+            #     saturated = frame>fpa.saturation_DN
 
             # Dark state subtraction
             frame = subtract_dark(frame, config.dark)
@@ -154,11 +172,20 @@ def calibrate_raw(frames, fpa, config):
 
             frame = frame * config.flat_field
 
-            # Fix bad pixels, and any nonfinite results from the previous
-            # operations
+            # Fix bad pixels, saturated pixels, and any nonfinite
+            # results from the previous operations
             flagged = np.logical_not(np.isfinite(frame))
+
             frame[flagged] = 0
-            # frame = fix_bad(frame, bad, fpa)
+
+            if hasattr(fpa,'bad_element_file'):
+                bad = config.bad.copy()
+            else:
+                bad = np.zeros(frame.shape).astype(int)
+
+            bad[flagged] = -1
+
+            frame = fix_bad(frame, bad, fpa)
 
             # Absolute radiometry
             if config.radiometric_calibration is not None:
@@ -172,6 +199,11 @@ def calibrate_raw(frames, fpa, config):
         if fpa.extract_subframe:
             frame = frame[:,fpa.first_distributed_column:(fpa.last_distributed_column + 1)]
             frame = frame[fpa.first_distributed_row:(fpa.last_distributed_row + 1),:]
+
+            # Clip the replaced channel mask
+            bad = bad[:,fpa.first_distributed_column:(fpa.last_distributed_column + 1)]
+            bad = bad[fpa.first_distributed_row:(fpa.last_distributed_row + 1),:]
+            bad = np.flip(bad,axis = (0,1))
 
             if config.second_flat_field_file is not None:
                 frame *= config.second_flat_field_file
@@ -193,7 +225,7 @@ def calibrate_raw(frames, fpa, config):
     output_frames = np.nanmean(output_frames,axis=0)
     output_frames[np.isnan(output_frames)] = -9999
 
-    return output_frames, noises
+    return output_frames, noises, np.packbits(bad, axis=0)
 
 
 def main():
@@ -204,6 +236,7 @@ def main():
     parser.add_argument('input_file', default='')
     parser.add_argument('config_file', default='')
     parser.add_argument('output_file', default='')
+    parser.add_argument('output_replaced', default='')
     parser.add_argument('--mode', default = 'default')
     parser.add_argument('--level', default='DEBUG',
             help='verbosity level: INFO, ERROR, or DEBUG')
@@ -337,13 +370,15 @@ def main():
 
     num_output_lines = 0
     with open(args.output_file,'wb') as fout:
-        # Do any final jobs
-        if args.debug_mode is False:
-            result = ray.get(jobs)
-        for frame, noise in result:
-            np.asarray(frame, dtype=np.float32).tofile(fout)
-            noises.append(noise)
-            num_output_lines += 1
+        with open(args.output_replaced,'wb') as foutreplace:
+            # Do any final jobs
+            if args.debug_mode is False:
+                result = ray.get(jobs)
+            for frame, noise,bad  in result:
+                np.asarray(frame, dtype=np.float32).tofile(fout)
+                np.asarray(bad, dtype=np.uint8).tofile(foutreplace)
+                noises.append(noise)
+                num_output_lines += 1
 
     # Form output metadata strings
     wl = config.wl_full.copy()
@@ -375,6 +410,13 @@ def main():
     params.update(**locals())
     with open(args.output_file+'.hdr','w') as fout:
         fout.write(header_template.format(**params))
+
+    # Output the header file for the replaced pixel image
+    nreplacedchannels = bad.shape[0]
+    params = {'lines': num_output_lines}
+    params.update(**locals())
+    with open(args.output_replaced+'.hdr','w') as fout:
+        fout.write(replaced_header_template.format(**params))
 
     logging.info('Done')
 
