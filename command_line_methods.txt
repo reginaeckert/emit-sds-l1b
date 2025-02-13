@@ -1,3 +1,10 @@
 python angrdn_matchCcode.py ../Data/AVIRISNG_Calibration/small_test_set/ang20230309t173911_raw ../Develop/emit-sds-l1b/config/ang_20231019_matchCcode.json ../Data/AVIRISNG_Calibration/small_test_set/output/matchCcode_20231022/ang20230309t173911_rdn --debug_mode --log_file "../Data/AVIRISNG_Calibration/small_test_set/output/matchCcode_20231022_logfile.txt"
 
 python angrdn.py ../Data/AVIRISNG_Calibration/small_test_set/ang20230309t173911_raw ../Develop/emit-sds-l1b/config/ang_20231022.json ../Data/AVIRISNG_Calibration/small_test_set/output/newCode_20231022/ang20230309t173911_rdn --debug_mode --log_file "../Data/AVIRISNG_Calibration/small_test_set/output/newCode_20231022_logfile.txt"
+
+
+python angrdn.py /beegfs/scratch/brodrick/sbg/methane/ang_sample/ang20150420t180624_raw ../config/ang_2015spring_20240501.json /beegfs/scratch/reckert/202404_SBGSampling/ang20150420t180624_v1f_python_rdn --log_file "/beegfs/scratch/reckert/202404_SBGSampling/ang20150420t180624_v1f_python_rdn_logfile.txt"
+
+sbatch -N 1 -c 40 -o logs/ang20150420t180624_o -e logs/ang20150420t180624_e --mem=180G --job-name=angrdn --wrap="python ../emit-sds-l1b/angrdn.py /beegfs/scratch/brodrick/sbg/methane/ang_sample/ang20150420t180624_raw ../emit-sds-l1b/config/ang_2015spring_20240501.json /beegfs/scratch/reckert/202404_SBGSampling/ang20150420t180624_v1f_python_rdn --log_file /beegfs/scratch/reckert/202404_SBGSampling/ang20150420t180624_v1f_python_rdn_logfile.txt"
+
+sbatch -N 1 -c 40 -o logs/ang20150420t180624_o -e logs/ang20150420t180624_e -p debug --mem=180G --job-name=angrdn --wrap="python angrdn.py /beegfs/scratch/brodrick/sbg/methane/ang_sample/ang20150420t180624_raw ./config/ang_2015spring_20240501.json /beegfs/scratch/reckert/develop/202404_SBGSampling/ang20150420t180624_v1f_python_rdn --log_file /beegfs/scratch/reckert/develop/202404_SBGSampling/ang20150420t180624_v1f_python_rdn_logfile.txt --binfac 2 --debug_mode"
