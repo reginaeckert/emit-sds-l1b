@@ -77,6 +77,7 @@ def fix_osf(frame, fpa):
 
 
 # Determine which indices we're interpolating through for a given OSF seam
+@jit
 def get_osf_interp_idx(positions):
   # If > 2, cubic interpolation
   if len(positions) > 2:
@@ -133,7 +134,7 @@ def main():
 
             np.array(fixed, dtype=np.float32).tofile(fout)
 
-    print('done') 
+    print('done')
 
 if __name__ == '__main__':
 
