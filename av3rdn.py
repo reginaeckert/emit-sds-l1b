@@ -51,6 +51,7 @@ fwhm = {{{fwhm_string}}}
 band names = {{{band_names_string}}}
 masked pixel noise = {masked_pixel_noise}
 integration time = {integration_time}
+bin factor = {bin_factor}
 
 """
 
@@ -341,7 +342,7 @@ def main():
     parser.add_argument('--binfac', type=str, default=None)
     parser.add_argument('--mode', default = 'default')
     parser.add_argument('--level', default='DEBUG',
-            help='verbosity level: INFO, ERROR, or DEBUG')
+                        help='verbosity level: INFO, ERROR, or DEBUG')
     parser.add_argument('--log_file', type=str, default=None)
     parser.add_argument('--max_jobs', type=int, default=40)
     parser.add_argument('--integration_time', type=float, default=None)
@@ -518,6 +519,7 @@ def main():
     params['masked_pixel_noise'] = np.nanmedian(np.array(noises))
     params['run_command_string'] = ' '.join(sys.argv)
     params['integration_time'] = integration_time
+    params['bin_factor'] = binfac
 
     # Write the header
     params.update(**locals())
