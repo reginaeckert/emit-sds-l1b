@@ -46,6 +46,8 @@ wavelength = {{{wavelength_string}}}
 fwhm = {{{fwhm_string}}}
 band names = {{{band_names_string}}}
 masked pixel noise = {masked_pixel_noise}
+integration time = 1
+bin factor = {bin_factor}
 """
 
 replaced_header_template = """ENVI
@@ -128,7 +130,7 @@ def calibrate_raw_remote(frames, fpa, config):
 def calibrate_raw(frames, fpa, config):
 
     if len(frames.shape) == 2:
-      frames = np.reshape(frames,(1,frames.shape[0],frames.shape[1]))
+        frames = np.reshape(frames,(1,frames.shape[0],frames.shape[1]))
 
     noises = []
     output_frames = []
@@ -142,7 +144,7 @@ def calibrate_raw(frames, fpa, config):
 
             # Left shift, returning to the 16 bit range.
             if hasattr(fpa,'left_shift_twice') and fpa.left_shift_twice:
-               frame = left_shift_twice(frame)
+                frame = left_shift_twice(frame)
 
             # Test for saturation
             # if hasattr(fpa,'saturation_DN'):
@@ -153,7 +155,7 @@ def calibrate_raw(frames, fpa, config):
 
             ## Delete telemetry
             if hasattr(fpa,'ignore_first_row') and fpa.ignore_first_row:
-               frame[0,:] = frame[1,:]
+                frame[0,:] = frame[1,:]
 
             # Raw noise calculation
             if hasattr(fpa,'masked_columns'):
@@ -399,11 +401,11 @@ def main():
 
     params = {}
     params['masked_pixel_noise'] = np.nanmedian(np.array(noises))
-    params['run_command_string'] = ' '.join(sys.argv)
-    params['input_files_string'] = ''
+    params['bin_factor'] = binfac
+
     for var in dir(fpa):
-       if var.endswith('_file'):
-          params['input_files_string'] = params['input_files_string'] + \
+        if var.endswith('_file'):
+            params['input_files_string'] = params['input_files_string'] + \
              ' %s=%s'%(var,getattr(fpa,var))
     params['lines'] =  num_output_lines
 

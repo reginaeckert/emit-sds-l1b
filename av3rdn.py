@@ -52,7 +52,6 @@ band names = {{{band_names_string}}}
 masked pixel noise = {masked_pixel_noise}
 integration time = {integration_time}
 bin factor = {bin_factor}
-
 """
 
 replaced_header_template = """ENVI
@@ -517,7 +516,6 @@ def main():
     # Place all calibration parameters in header metadata
     params = {}
     params['masked_pixel_noise'] = np.nanmedian(np.array(noises))
-    params['run_command_string'] = ' '.join(sys.argv)
     params['integration_time'] = integration_time
     params['bin_factor'] = binfac
 

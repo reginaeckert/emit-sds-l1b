@@ -58,8 +58,8 @@ wavelength = {{{wavelength_string}}}
 fwhm = {{{fwhm_string}}}
 band names = {{{band_names_string}}}
 masked pixel noise = {masked_pixel_noise}
-ang pge input files = {{{input_files_string}}}
-ang pge run command = {{{run_command_string}}}
+integration time = 1
+bin factor = {bin_factor}
 """
 
 replaced_header_template = """ENVI
@@ -157,7 +157,7 @@ def calibrate_raw_remote(frames, fpa, config):
 def calibrate_raw(frames, fpa, config):
 
     if len(frames.shape) == 2:
-      frames = np.reshape(frames,(1,frames.shape[0],frames.shape[1]))
+        frames = np.reshape(frames,(1,frames.shape[0],frames.shape[1]))
 
     noises = []
     output_frames = []
@@ -407,8 +407,8 @@ def main():
 
     params = {}
     params['masked_pixel_noise'] = np.nanmedian(np.array(noises))
-    params['run_command_string'] = ' '.join(sys.argv)
-    params['input_files_string'] = ''
+    params['bin_factor'] = binfac
+
     for var in dir(fpa):
        if var.endswith('_file'):
           params['input_files_string'] = params['input_files_string'] + \
