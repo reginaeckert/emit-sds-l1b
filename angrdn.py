@@ -408,11 +408,6 @@ def main():
     params = {}
     params['masked_pixel_noise'] = np.nanmedian(np.array(noises))
     params['bin_factor'] = binfac
-
-    for var in dir(fpa):
-       if var.endswith('_file'):
-          params['input_files_string'] = params['input_files_string'] + \
-             ' %s=%s'%(var,getattr(fpa,var))
     params['lines'] =  num_output_lines
 
     params.update(**locals())

@@ -87,7 +87,7 @@ class Config:
             _, self.wl_full, self.fwhm_full = \
                  np.loadtxt(fpa.spectral_calibration_file).T * 1000
         else:
-            self.wl_full, self.fwhm_full = None
+            self.wl_full, self.fwhm_full = None, None
 
         if 'flat_field_file' in current_mode.keys():
             self.flat_field_file = current_mode['flat_field_file']
@@ -402,11 +402,6 @@ def main():
     params = {}
     params['masked_pixel_noise'] = np.nanmedian(np.array(noises))
     params['bin_factor'] = binfac
-
-    for var in dir(fpa):
-        if var.endswith('_file'):
-            params['input_files_string'] = params['input_files_string'] + \
-             ' %s=%s'%(var,getattr(fpa,var))
     params['lines'] =  num_output_lines
 
     params.update(**locals())

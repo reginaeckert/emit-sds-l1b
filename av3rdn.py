@@ -135,7 +135,7 @@ class Config:
             _, self.wl_full, self.fwhm_full = \
                  np.loadtxt(fpa.spectral_calibration_file).T * 1000
         else:
-            self.wl_full, self.fwhm_full = None
+            self.wl_full, self.fwhm_full = None, None
 
         if hasattr(fpa,'srf_correction_file'):
             self.srf_correction = np.fromfile(fpa.srf_correction_file,
