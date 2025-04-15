@@ -17,7 +17,7 @@ from numba import jit
 from math import pow
 from fpa import FPA
 from scipy.interpolate import interp1d
-from isofit.core.common import conditional_gaussian
+# from isofit.core.common import conditional_gaussian
 import subprocess
 
 
@@ -30,29 +30,29 @@ def find_header(infile):
     raise FileNotFoundError('Did not find header file')
 
 
-def fix_osf_gaussian(frame, fpa, mu, C):
-    fixed = frame.copy()
+# def fix_osf_gaussian(frame, fpa, mu, C):
+#     fixed = frame.copy()
 
-    if len(fpa.osf_seam_interpolation_edges)==0:
-        return fixed
+#     if len(fpa.osf_seam_interpolation_edges)==0:
+#         return fixed
 
-    # Calculate indices for inferred portion and remainder 
-    window = []
-    for positions in fpa.osf_seam_interpolation_edges:
-        window.extend(np.arange(positions[0]+1,positions[1]))
-    remain = [q for q in np.arange(frame.shape[0]) if q not in window]
+#     # Calculate indices for inferred portion and remainder
+#     window = []
+#     for positions in fpa.osf_seam_interpolation_edges:
+#         window.extend(np.arange(positions[0]+1,positions[1]))
+#     remain = [q for q in np.arange(frame.shape[0]) if q not in window]
 
-    # Perform inference for each spectrum independently
-    # mean mu and covariance C are for normalized radiances
-    for col in range(fixed.shape[1]):
-        rdn = frame[:,col]
-        z = np.linalg.norm(rdn)
-        normed = rdn / z
-        pred,_ = conditional_gaussian(mu, C, window, remain, 
-            normed[remain])
-        fixed[window,col] = (pred * z)
+#     # Perform inference for each spectrum independently
+#     # mean mu and covariance C are for normalized radiances
+#     for col in range(fixed.shape[1]):
+#         rdn = frame[:,col]
+#         z = np.linalg.norm(rdn)
+#         normed = rdn / z
+#         pred,_ = conditional_gaussian(mu, C, window, remain,
+#             normed[remain])
+#         fixed[window,col] = (pred * z)
 
-    return fixed
+#     return fixed
 
 
 def fix_osf(frame, fpa):
@@ -77,6 +77,7 @@ def fix_osf(frame, fpa):
 
 
 # Determine which indices we're interpolating through for a given OSF seam
+@jit
 def get_osf_interp_idx(positions):
   # If > 2, cubic interpolation
   if len(positions) > 2:
@@ -133,7 +134,7 @@ def main():
 
             np.array(fixed, dtype=np.float32).tofile(fout)
 
-    print('done') 
+    print('done')
 
 if __name__ == '__main__':
 
