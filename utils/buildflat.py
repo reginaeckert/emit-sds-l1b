@@ -48,7 +48,8 @@ def main():
     for infile in args.input:
         print(infile)
         inhdr  = find_header(infile)
-        img = envi.open(inhdr).load()
+        #img = envi.open(inhdr).load()
+        img = np.copy(envi.open(inhdr).asarray(writable=False))
         if np.any(img<-9990):
            continue
         band = np.squeeze(img[:,:,50])
