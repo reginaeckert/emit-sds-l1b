@@ -82,13 +82,13 @@ def create_shutter_states(input_file,dark_sec=10,transition_sec=3.5,fps=216):
 
     return shutter_state
 
-def get_shutter_states(input_file,dark_sec=10,transition_sec=3.5,fps=216):
+def get_shutter_states(input_file, rows = 328, dark_sec=10, transition_sec=3.5, fps=216):
     """
     Return per line shutter states, first try using OBC bits, if values are not correct
     fall back on preset shutter detection.
     """
 
-    frameSize = 1280 * 328 * 2
+    frameSize = 1280 * rows * 2
     obcStatusPixel = 159
 
     raw_size = os.path.getsize(input_file)

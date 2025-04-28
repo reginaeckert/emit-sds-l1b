@@ -36,7 +36,7 @@ from pedestal import fix_pedestal
 from darksubtract import subtract_dark
 
 header_template = """ENVI
-description = {{AVIRIS 3 L1B calibrated spectral radiance (units: uW nm-1 cm-2 sr-1)}}
+description = {{{instrument} L1B calibrated spectral radiance (units: uW nm-1 cm-2 sr-1)}}
 samples = {ncolumns}
 lines = {lines}
 bands = {nchannels}
@@ -75,14 +75,19 @@ def find_header(infile):
     else:
         raise FileNotFoundError('Did not find header file')
 
-def parse_integration_time(rawf):
+
+def parse_integration_time(rawf, instrument = 'AVIRIS-3', rows = 328):
 
     integration_time  = None
 
-    int_scale = {'013f': 1.,
-                 '00a0': .5,
-                 '0060': .3,
-                 '0020': .1}
+    if instrument == 'AVIRIS-3':
+        int_scale = {'013f': 1.,
+                     '00a0': .5,
+                     '0060': .3,
+                     '0020': .1}
+
+    if instrument == 'AVIRIS-5':
+        int_scale = {'01d9': 1.}
 
     line = 0
 
@@ -90,7 +95,7 @@ def parse_integration_time(rawf):
 
         for line in range(100):
 
-            f.seek(line * 1280 * 328 * 2+324) 	#Byte 324 valid: 0xBABE invalid: 0xDEAD
+            f.seek(line * 1280 * rows * 2 + 324) 	#Byte 324 valid: 0xBABE invalid: 0xDEAD
             data1=f.read(2)
             pp_FIFO_flag = hex(struct.unpack('<H', data1)[0])
 
@@ -99,7 +104,7 @@ def parse_integration_time(rawf):
 
             if (pp_FIFO_flag == '0xbabe') & (pp_FIFO_word_count == 36):
 
-                f.seek(line * 1280 * 328 * 2+359)
+                f.seek(line * 1280 * rows * 2+359)
                 lsb=f"0x{f.read(1)[0]:02x}"[-2:]
                 msb=f"0x{f.read(1)[0]:02x}"[-2:]
 
@@ -328,16 +333,16 @@ def calibrate_raw(frames, fpa, config):
 
     return output_frames, noises, np.packbits(bad, axis=0)
 
-
 def main():
 
-    description = "AVIRIS-3 Spectroradiometric Calibration"
+    description = "AVIRIS-3/5 Spectroradiometric Calibration"
 
     parser = argparse.ArgumentParser(description=description)
     parser.add_argument('input_file', default='')
     parser.add_argument('config_file', default='')
     parser.add_argument('output_file', default='')
     parser.add_argument('output_replaced', default='')
+    parser.add_argument('instrument', choices=['AVIRIS-3', 'AVIRIS-5'])
     parser.add_argument('--binfac', type=str, default=None)
     parser.add_argument('--mode', default = 'default')
     parser.add_argument('--level', default='DEBUG',
@@ -375,6 +380,8 @@ def main():
 
     infile = envi.open(find_header(args.input_file))
 
+    fpa = FPA(args.config_file)
+
     if args.integration_time is None:
 
         integration_time = infile.metadata.get('integration time')
@@ -383,14 +390,15 @@ def main():
             integration_time = float(integration_time)
         else:
             logging.info('Integration time not found in raw ENVI header. Checking frame header')
-            integration_time = parse_integration_time(args.input_file)
+            integration_time = parse_integration_time(args.input_file,
+                                                      instrument = args.instrument,
+                                                      rows = fpa.native_rows)
             if integration_time is None:
                 logging.error(f"Integration time not found in frame header.")
                 sys.exit(1)
     else:
         integration_time = args.integration_time
 
-    fpa = FPA(args.config_file)
     config = Config(fpa, args.mode, integration_time)
 
     logging.info('Initializing ray')
@@ -424,7 +432,7 @@ def main():
 
     elif not args.dark_science_indices:
         logging.debug('Detecting shutter position')
-        shutter_pos =  get_shutter_states(args.input_file)
+        shutter_pos =  get_shutter_states(args.input_file, rows = fpa.native_rows)
         dark_frame_idxs = np.argwhere(shutter_pos == 0).flatten()
         science_frame_idxs =  np.argwhere(shutter_pos == 2).flatten()
     else:
@@ -518,6 +526,7 @@ def main():
     params['masked_pixel_noise'] = np.nanmedian(np.array(noises))
     params['integration_time'] = integration_time
     params['bin_factor'] = binfac
+    params['instrument'] = args.instrument
 
     # Write the header
     params.update(**locals())
