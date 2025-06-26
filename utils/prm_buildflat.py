@@ -34,16 +34,11 @@ def main():
     parser.add_argument('input', type=str, help='Flat field')
     parser.add_argument('--config',type=str)
     parser.add_argument('--max_rdn',default=35.0)
-    parser.add_argument('output', help='Output final flat field')
-    args = parser.parse_args()
-    fpa = FPA(args.config)
+    parser.add_argument('--no_flat', action='store_true')
 
-    reference_cols = []
-    for extrema in fpa.reference_cols:
-      # Need to adjust reference columns because code is run on radiance subframe
-      reference_cols.extend(np.arange(extrema[0]-fpa.first_distributed_column,
-                                      extrema[1]-fpa.first_distributed_column))
-    reference_cols = np.array(reference_cols, dtype=int)
+    parser.add_argument('output', help='Output final flat field')
+
+    args = parser.parse_args()
 
     # Define local variables
     print(args.input)
@@ -56,35 +51,48 @@ def main():
     nbands = img.shape[2]
     nsamps = img.shape[1]
 
-    # Remove edges
-    edges = abs(ndimage.sobel(ndimage.gaussian_filter(band, 3)))
-    thresh = filters.threshold_otsu(edges)
-    thresh = np.percentile(edges,70)
-    edge = edges>thresh
-    edge = ndimage.binary_dilation(edge)
+    if args.no_flat:
+        flat = np.ones((nbands,nsamps))
 
-    # Remove bright pixels (clouds, etc.)
-    bright = np.any(img>args.max_rdn,axis=2)
-    use = np.logical_or(edge, bright)
-    for i in range(img.shape[0]):
-        img[i,use[i,:],:] = np.nan
+    else:
+        fpa = FPA(args.config)
 
-    flat = np.nanmedian(img,axis=0).T # convert to row, column
-    new = flat.copy()
+        reference_cols = []
+        for extrema in fpa.reference_cols:
+          # Need to adjust reference columns because code is run on radiance subframe
+          reference_cols.extend(np.arange(extrema[0]-fpa.first_distributed_column,
+                                          extrema[1]-fpa.first_distributed_column))
+        reference_cols = np.array(reference_cols, dtype=int)
 
-    # High pass filter
-    blur = gaussian_filter(new,(0.4,2))
+        # Remove edges
+        edges = abs(ndimage.sobel(ndimage.gaussian_filter(band, 3)))
+        thresh = filters.threshold_otsu(edges)
+        thresh = np.percentile(edges,70)
+        edge = edges>thresh
+        edge = ndimage.binary_dilation(edge)
 
-    # Remove edge effect
-    blur[:,:4] = new[:,:4]
-    blur[:,-4:] = new[:,-4:]
+        # Remove bright pixels (clouds, etc.)
+        bright = np.any(img>args.max_rdn,axis=2)
+        use = np.logical_or(edge, bright)
+        for i in range(img.shape[0]):
+            img[i,use[i,:],:] = np.nan
 
-    new = new / blur
-    flat = new
-    for row in range(flat.shape[0]):
-       ref = np.nanmedian(flat[row, reference_cols])
-       flat[row,:] = ref / flat[row,:]
-    flat[np.logical_not(np.isfinite(flat))]= 1
+        flat = np.nanmedian(img,axis=0).T # convert to row, column
+        new = flat.copy()
+
+        # High pass filter
+        blur = gaussian_filter(new,(0.4,2))
+
+        # Remove edge effect
+        blur[:,:4] = new[:,:4]
+        blur[:,-4:] = new[:,-4:]
+
+        new = new / blur
+        flat = new
+        for row in range(flat.shape[0]):
+           ref = np.nanmedian(flat[row, reference_cols])
+           flat[row,:] = ref / flat[row,:]
+        flat[np.logical_not(np.isfinite(flat))]= 1
 
     I = envi.open(inhdr)
     meta = I.metadata.copy()
