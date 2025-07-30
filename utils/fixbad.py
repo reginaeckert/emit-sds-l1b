@@ -78,7 +78,7 @@ def closest(a,B):
     return np.argmax(projection)
 
 
-@jit
+#@jit
 def fix_bad(frame, bad, fpa):
 
     rows, columns = frame.shape
