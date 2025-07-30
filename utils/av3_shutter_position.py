@@ -125,13 +125,18 @@ def get_shutter_states(input_file, rows = 328, dark_sec=10, transition_sec=3.5, 
             obc[leading_science_frames] = 2
 
         transitions = obc[1:]-obc[:-1]
-        science_to_dark = np.argwhere(transitions  == -1)[0][0]
+        try:
+            science_to_dark = np.argwhere(transitions  == -1)[0][0]
+        except IndexError:
+            science_to_dark = -1
+            print('No 2nd shutter state detected, using all end frames')
 
         shutter_state = np.zeros(len(obc))
         shutter_state[dark_to_science:dark_to_science+int(transition_sec*fps)] = 1
         shutter_state[dark_to_science+int(transition_sec*fps):science_to_dark-int(transition_sec*fps)] = 2
-        shutter_state[science_to_dark-int(transition_sec*fps):science_to_dark] = 3
-        shutter_state[science_to_dark:] = 4
+        if science_to_dark > 0:
+            shutter_state[science_to_dark-int(transition_sec*fps):science_to_dark] = 3
+            shutter_state[science_to_dark:] = 4
 
 
     return shutter_state

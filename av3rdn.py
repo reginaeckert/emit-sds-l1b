@@ -143,10 +143,14 @@ class Config:
             self.wl_full, self.fwhm_full = None, None
 
         if hasattr(fpa,'srf_correction_file'):
-            self.srf_correction = np.fromfile(fpa.srf_correction_file,
-                 dtype = np.float32).reshape((fpa.native_rows, fpa.native_rows))
-            self.crf_correction = np.fromfile(fpa.crf_correction_file,
-                 dtype = np.float32).reshape((fpa.native_columns, fpa.native_columns))
+            try:
+                self.srf_correction = np.fromfile(fpa.srf_correction_file,
+                     dtype = np.float32).reshape((fpa.native_rows, fpa.native_rows))
+                self.crf_correction = np.fromfile(fpa.crf_correction_file,
+                     dtype = np.float32).reshape((fpa.native_columns, fpa.native_columns))
+            except ValueError:
+                self.srf_correction = np.loadtxt(fpa.srf_correction_file) #New version of correction
+                self.crf_correction = np.loadtxt(fpa.crf_correction_file)
         else:
             self.srf_correction = None
             self.crf_correction = None
@@ -172,7 +176,7 @@ class Config:
             _, self.radiometric_calibration, self.radiometric_uncert = \
                  np.loadtxt(self.radiometric_coefficient_file).T
 
-            self.radiometric_calibration /= integration_time
+            #self.radiometric_calibration /= integration_time
         else:
             self.radiometric_calibration, self.radiometric_uncert = None, None
 
@@ -399,7 +403,14 @@ def main():
     else:
         integration_time = args.integration_time
 
-    config = Config(fpa, args.mode, integration_time)
+    if integration_time < 1:
+        mode = f'int{integration_time*100:.0f}pct'
+    else:
+        mode = args.mode
+    logging.info(f'Using mode {mode} for integration time {integration_time}')
+    # Likely need to add a try/except in Config to catch the case where mode doesn't exist and revert to default
+
+    config = Config(fpa, mode, integration_time)
 
     logging.info('Initializing ray')
     ray.init(num_cpus=args.max_jobs,ignore_reinit_error=True)

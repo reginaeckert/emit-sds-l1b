@@ -26,13 +26,41 @@ def find_header(infile):
   else:
     raise FileNotFoundError('Did not find header file')
 
+def psf(x, mean=0, sigma=1.):
+    q = np.exp(-0.5 * ((x - mean) / sigma)**2)
+    q = q/sum(q)
+    return q
+    
+def blur_matrix(x, sigma):
+    psfs = []
+    for i in range(len(x)):
+        q = psf(x, x[i], sigma)
+        psfs.append(q)
+    return np.array(psfs)
+    
+def deconvolve(frame, sigma_spectral=20, sigma_spatial=20, amplitude=0.0115):
+    xa = np.arange(frame.shape[0])
+    xb = np.arange(frame.shape[1])
+    spectral_blur = blur_matrix(xa, sigma_spectral)
+    spatial_blur = blur_matrix(xb, sigma_spatial)
+    Q = (spatial_blur @ (spectral_blur @ frame).T).T
+    fixed = (frame - amplitude * Q)
+    fixed = fixed/sum(fixed)*sum(frame)
+    return fixed
+
 
 def fix_scatter(frame, spectral_correction, spatial_correction):
-   if frame.shape[0] != spectral_correction.shape[0] or \
-       frame.shape[1] != spatial_correction.shape[1]:
-       logging.error('Mismatched frame size')
-   fixed = spectral_correction @ (spatial_correction @ frame.T).T
-   return fixed
+    if frame.shape[0] != spectral_correction.shape[0] or \
+        frame.shape[1] != spatial_correction.shape[1]:
+        if spectral_correction.shape[0] == 2:
+            fixed = deconvolve(frame,sigma_spectral = spectral_correction[0],\
+                              sigma_spatial = spatial_correction[0],\
+                              amplitude = spectral_correction[1])
+        else:
+            logging.error('Mismatched frame size')
+    else:
+        fixed = spectral_correction @ (spatial_correction @ frame.T).T
+    return fixed
 
 
 def main():
