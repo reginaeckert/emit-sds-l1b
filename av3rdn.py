@@ -220,10 +220,11 @@ BAD_FLAG = -9000
 
 @ray.remote(num_cpus=1)
 def calibrate_raw(frames, fpa, config):
-
+    # frames is all frames to be co-added
     if len(frames.shape) == 2:
         frames = np.reshape(frames,(1,frames.shape[0],frames.shape[1]))
 
+    flagged_save = config.bad.copy() # Overall copy of bad pixels, non-finite, saturated, etc, regardless of replacement
     noises = []
     output_frames = []
     for _f in range(frames.shape[0]):
@@ -241,6 +242,7 @@ def calibrate_raw(frames, fpa, config):
             # Test for saturation
             if hasattr(fpa,'saturation_DN'):
                 saturated = frame>fpa.saturation_DN
+                flagged_save[saturated] = -1 # Mark these, regardless of replacement
 
             # Dark state subtraction
             frame = subtract_dark(frame, config.dark)
@@ -271,7 +273,7 @@ def calibrate_raw(frames, fpa, config):
             # Fix bad pixels, saturated pixels, and any nonfinite
             # results from the previous operations
             flagged = np.logical_not(np.isfinite(frame))
-
+            
             if fpa.replace_saturation:
                 flagged = np.logical_or(saturated,flagged)
             frame[flagged] = 0
@@ -282,6 +284,7 @@ def calibrate_raw(frames, fpa, config):
                 bad = np.zeros(frame.shape).astype(int)
 
             bad[flagged] = -1
+            flagged_save[flagged] = -1
 
             frame = fix_bad(frame, bad, fpa)
 
@@ -305,16 +308,10 @@ def calibrate_raw(frames, fpa, config):
             frame[np.logical_not(np.isfinite(frame))]=0
 
         if fpa.extract_subframe:
-
             # Clip the radiance data to the appropriate size
             frame = frame[:,fpa.first_distributed_column:(fpa.last_distributed_column + 1)]
             frame = frame[fpa.first_distributed_row:(fpa.last_distributed_row + 1),:]
             frame = np.flip(frame,axis = (0,1))
-
-            # Clip the replaced channel mask
-            bad = bad[:,fpa.first_distributed_column:(fpa.last_distributed_column + 1)]
-            bad = bad[fpa.first_distributed_row:(fpa.last_distributed_row + 1),:]
-            bad = np.flip(bad,axis = (0,1))
 
         # Replace all bad data flags with -9999
         cleanframe = frame.copy()
@@ -322,6 +319,13 @@ def calibrate_raw(frames, fpa, config):
         output_frames.append(cleanframe)
         noises.append(noise)
 
+    if fpa.extract_subframe:
+        # Clip the replaced channel mask
+        # Separately because we need to accumulate knowledge of saturated pixels
+        flagged_save = flagged_save[:,fpa.first_distributed_column:(fpa.last_distributed_column + 1)]
+        flagged_save = flagged_save[fpa.first_distributed_row:(fpa.last_distributed_row + 1),:]
+        flagged_save = np.flip(flagged_save,axis = (0,1))
+        
     output_frames = np.stack(output_frames)
     output_frames[output_frames<=(BAD_FLAG+1e-6)] = np.nan
 
@@ -335,7 +339,7 @@ def calibrate_raw(frames, fpa, config):
     output_frames = np.nanmean(output_frames,axis=0)
     output_frames[np.isnan(output_frames)] = -9999
 
-    return output_frames, noises, np.packbits(bad, axis=0)
+    return output_frames, noises, np.packbits(flagged_save, axis=0)
 
 def main():
 
