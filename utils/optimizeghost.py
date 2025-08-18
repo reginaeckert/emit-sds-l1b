@@ -126,7 +126,7 @@ def err(x, fpa, frames, ghost_config, coarse):
     jobs = [frame_error(frame, fpa, ghostmap, blur,
           center) for frame in frames]
     errs = np.array(jobs)
-    print(sum(errs))
+    #print(sum(errs))
    #for i,err in enumerate(jobs):
    #    print('frame %i error %10.2f'%(i,err))
     return sum(errs)
@@ -157,32 +157,48 @@ def main():
 
     parser = argparse.ArgumentParser(description=description)
     parser.add_argument('ghost_config')
+    parser.add_argument('input_file')
+    parser.add_argument('output_config')
     parser.add_argument('--config', default=None)
     parser.add_argument('--seed', default=None)
     parser.add_argument('--method', default='TNC')
-    parser.add_argument('input',nargs='+')
-    parser.add_argument('output')
+    parser.add_argument('--test_file',default=None)
+    parser.add_argument('--intermediate_file',default=None)
+    # parser.add_argument('input',nargs='+')
+    # parser.add_argument('output')
     args = parser.parse_args()
 
     fpa = FPA(args.config)
 
-    frames = []
-    for infile in args.input:
-        I = envi.open(find_header(infile))
-        frame = np.squeeze(I.load())
-        if frame.shape[0] > frame.shape[1]:
-            frame = frame.T
-        frames.append(frame)
-    frames = np.array(frames)
+    # frames = []
+    # for infile in args.input:
+    #     I = envi.open(find_header(infile))
+    #     frame = np.squeeze(I.load())
+    #     if frame.shape[0] > frame.shape[1]:
+    #         frame = frame.T
+    #     frames.append(frame)
+    # frames = np.array(frames)
+
+    frames = envi.open(args.input_file).open_memmap()
+
+    if args.test_file is not None:
+        test_frames = envi.open(args.test_file).open_memmap()
 
     with open(args.ghost_config,'r') as fin:
         ghost_config = json.load(fin)
 
     ghost_config = randomize_ghost_config(ghost_config, args.seed)
 
+    coarse_list = ['psf sigma and scaling','overall scaling','intensity parameters','extent of lines']
     # We perform coordinate descent on different state vector subspaces
-    for coarse in [3,1,2,0,1,2,0]:#[2,2]:#[1,0,2,1,0,2,1,0,2]:
-
+    for ii,coarse in enumerate([0,2,3,0,2]): #[3,1,2,0,1,2,0]:#[2,2]:#[1,0,2,1,0,2,1,0,2]:
+        #"Coarse"
+        #0 = psf sigma, peak
+        #1 = scaling
+        #2 = intensity slope, offset
+        #3 = extent 
+        print(f'iteration {ii}, coarse {coarse} ({coarse_list[coarse]})',flush=True)
+        
         # nonlinear solution
         x0, bounds = serialize_ghost_config(ghost_config, coarse=coarse)
         best = minimize(err, x0, args=(fpa, frames, ghost_config, coarse), \
@@ -193,15 +209,24 @@ def main():
         # Print the result to screen
         print(best.nit,'iterations')
         print('final error:',err(best.x, fpa, frames, ghost_config, coarse=coarse))
+        if args.test_file is not None:
+            print('test error:',err(best.x, fpa, test_frames, ghost_config, coarse=coarse))
         print(best.message)
 
         # Record final error
         xbest, bounds = serialize_ghost_config(best_config, coarse=2)
         best_config['final_error'] = err(xbest, fpa, frames, ghost_config, coarse=2)
+        if args.test_file is not None:
+            best_config['test_error'] = err(xbest, fpa, test_frames, ghost_config, coarse=2)
         
         # Write provisional configuration to the output file
-        with open(args.output,'w') as fout:
+        with open(args.output_config,'w') as fout:
             fout.write(json.dumps(best_config,indent=2))
+        if args.intermediate_file is not None:
+            intermed_out = f'{args.intermediate_file}_coarse{coarse}_iter{ii}.json'
+            with open(intermed_out,'w') as fout:
+                fout.write(json.dumps(best_config,indent=2))
+            
 
         # Initialize for the next round
         ghost_config = best_config
