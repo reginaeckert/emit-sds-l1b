@@ -16,6 +16,7 @@ import numpy as np
 from spectral.io import envi
 import ray
 import sys
+import scipy.io as scio
 
 # Import some AVIRIS-3-specific functions
 my_directory, my_executable = os.path.split(os.path.abspath(__file__))
@@ -25,13 +26,11 @@ os.environ['PYTHONPATH'] = my_directory + '/utils/'
 from fpa import FPA
 from av3_shutter_position import get_shutter_states
 from leftshift import left_shift_twice
-from fixghostraster import build_ghost_matrix
-from fixghostraster import build_ghost_blur
+from fixghost_av3_av5 import build_spatial_psfs, build_spectral_psfs, fix_ghost
 from fixbad import fix_bad
 from fixosf import fix_osf
 from fixlinearity import fix_linearity
 from fixscatter import fix_scatter
-from fixghost import fix_ghost
 from pedestal import fix_pedestal
 from darksubtract import subtract_dark
 
@@ -159,7 +158,7 @@ class Config:
             self.bad = np.fromfile(fpa.bad_element_file,
                  dtype = np.int16).reshape((fpa.native_rows, fpa.native_columns))
         else:
-            self.bad = np.zeros((fpa.native_rows, fpa.native_columns))
+            self.bad = np.zeros((fpa.native_rows, fpa.native_columns),dtype=np.int16)
 
         if 'flat_field_file' in current_mode.keys():
             self.flat_field_file = current_mode['flat_field_file']
@@ -187,16 +186,17 @@ class Config:
         else:
             self.zero_offset = np.zeros((fpa.native_rows, fpa.native_columns))
 
-        # Load ghost configuration and construct the matrix
-        if hasattr(fpa,'ghost_map_file'):
-            with open(fpa.ghost_map_file,'r') as fin:
-                ghost_config = json.load(fin)
-                self.ghost_matrix = build_ghost_matrix(ghost_config, fpa)
-                self.ghost_blur = build_ghost_blur(ghost_config, fpa)
-                self.ghost_center = ghost_config['center']
+        if hasattr(fpa,'ghost_file'):
+            with open(fpa.ghost_file,'r') as fin:
+                ghost_params = scio.loadmat(fin,squeeze_me=True)
+            self.ghost_matrix = ghost_params['ghostmap']
+            self.ghost_spatial_blur = build_spatial_psfs(ghost_params,fpa)
+            self.ghost_spectral_blur = build_spectral_psfs(ghost_params,fpa)
+            self.ghost_center = ghost_params['center']
         else:
             self.ghost_matrix = None
-            self.ghost_blur = None
+            self.ghost_spatial_blur = None
+            self.ghost_spectral_blur = None
             self.ghost_center = None
 
         if 'linearity_file' in current_mode.keys():
@@ -224,7 +224,7 @@ def calibrate_raw(frames, fpa, config):
     if len(frames.shape) == 2:
         frames = np.reshape(frames,(1,frames.shape[0],frames.shape[1]))
 
-    flagged_save = config.bad.copy() # Overall copy of bad pixels, non-finite, saturated, etc, regardless of replacement
+    flagged_save = config.bad.copy().astype(np.int16) # Overall copy of bad pixels, non-finite, saturated, etc, regardless of replacement
     noises = []
     output_frames = []
     for _f in range(frames.shape[0]):
@@ -281,7 +281,7 @@ def calibrate_raw(frames, fpa, config):
             if hasattr(fpa,'bad_element_file'):
                 bad = config.bad.copy()
             else:
-                bad = np.zeros(frame.shape).astype(int)
+                bad = np.zeros(frame.shape).astype(np.int16)
 
             bad[flagged] = -1
             flagged_save[flagged] = -1
@@ -293,8 +293,10 @@ def calibrate_raw(frames, fpa, config):
                 frame = fix_scatter(frame, config.srf_correction, config.crf_correction)
 
             if config.ghost_matrix is not None:
-                frame = fix_ghost(frame, fpa, config.ghost_matrix,
-                      blur = config.ghost_blur, center = config.ghost_center)
+                frame = fix_ghost(frame, fpa, ghostmap = config.ghost_matrix,\
+                                  spectral_psf = config.ghost_spectral_blur,\
+                                  spatial_psf = config.ghost_spatial_blur,\
+                                  center = config.ghost_center)
 
             # # Absolute radiometry
             if config.radiometric_calibration is not None:
