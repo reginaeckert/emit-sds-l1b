@@ -187,8 +187,7 @@ class Config:
             self.zero_offset = np.zeros((fpa.native_rows, fpa.native_columns))
 
         if hasattr(fpa,'ghost_file'):
-            with open(fpa.ghost_file,'r') as fin:
-                ghost_params = scio.loadmat(fin,squeeze_me=True)
+            ghost_params = scio.loadmat(fpa.ghost_file,squeeze_me=True)
             self.ghost_matrix = ghost_params['ghostmap']
             self.ghost_spatial_blur = build_spatial_psfs(ghost_params,fpa)
             self.ghost_spectral_blur = build_spectral_psfs(ghost_params,fpa)
@@ -207,6 +206,8 @@ class Config:
             self.linearity_mu[np.isnan(self.linearity_mu)] = 0
             self.linearity_evec = np.copy(np.squeeze(basis[1:,:].T))
             self.linearity_evec[np.isnan(self.linearity_evec)] = 0
+            if len(self.linearity_evec.shape)==1:
+                self.linearity_evec = self.linearity_evec[:,np.newaxis]
             self.linearity_coeffs = envi.open(self.linearity_map_file+'.hdr').load()
         else:
             self.linearity_file = None
@@ -289,14 +290,14 @@ def calibrate_raw(frames, fpa, config):
             frame = fix_bad(frame, bad, fpa)
 
             # Optical corrections
-            if config.srf_correction is not None:
-                frame = fix_scatter(frame, config.srf_correction, config.crf_correction)
-
             if config.ghost_matrix is not None:
                 frame = fix_ghost(frame, fpa, ghostmap = config.ghost_matrix,\
                                   spectral_psf = config.ghost_spectral_blur,\
                                   spatial_psf = config.ghost_spatial_blur,\
                                   center = config.ghost_center)
+
+            if config.srf_correction is not None:
+                frame = fix_scatter(frame, config.srf_correction, config.crf_correction)
 
             # # Absolute radiometry
             if config.radiometric_calibration is not None:
